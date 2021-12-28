@@ -6,7 +6,7 @@
  * @flow strict-local
  */
 
-import React, {useEffect, useState} from 'react';
+import React, {useEffect, useState, useRef} from 'react';
 import {
   SafeAreaView,
   ScrollView,
@@ -36,6 +36,7 @@ import {
 } from 'react-native/Libraries/NewAppScreen';
 import Realm, {BSON, Credentials} from 'realm';
 import useMongoDB from './hooks/mongodb';
+import CardStack, {Card} from 'react-native-card-stack-swiper';
 
 const window = Dimensions.get('window');
 const screen = Dimensions.get('screen');
@@ -49,6 +50,8 @@ const App = () => {
   const [uLoading, setULoading] = useState(false);
   const [m, setM] = useState(false);
   const [article, setArticle] = useState(false);
+  const [currentIdx, setCurrentIdx] = useState(0);
+  const swiper = useRef();
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
@@ -76,7 +79,8 @@ const App = () => {
 
   useEffect(() => {
     if (db) {
-      getLatest();
+      console.log('initial fetch');
+      fetchNextArticles();
     }
   }, [db]);
 
@@ -89,6 +93,38 @@ const App = () => {
           created: {$lt: articles[articles.length - 1].created},
         },
         {limit: 2, sort: {created: -1}},
+      );
+      setBLoading(false);
+      setArticles(prev => {
+        const newA = [...prev, ...objs];
+
+        return newA.filter(
+          (a, id, self) => self.findIndex(b => b._id == a._id) == id,
+        );
+      });
+    }
+  }
+
+  async function fetchNextArticles() {
+    console.log('fetching articles');
+    if (db && !bLoading && !uLoading) {
+      setBLoading(true);
+      let d = new Date();
+      d = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0);
+      d = new Date(d.getFullYear(), d.getMonth(), 22, 0, 0, 0);
+      console.log(d.toISOString());
+
+      const objs = await db.collection('articles').find(
+        {
+          description: {$ne: ''},
+          created: {
+            $gt:
+              articles.length > 0
+                ? articles[articles.length - 1].created
+                : d.toISOString(),
+          },
+        },
+        {limit: 5, sort: {created: 1}},
       );
       setBLoading(false);
       setArticles(prev => {
@@ -123,34 +159,32 @@ const App = () => {
     }
   }, [article]);
 
+  useEffect(() => {
+    if (currentIdx == articles.length - 2) fetchNextArticles();
+  }, [currentIdx]);
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <FlatList
+      {/*<Text
+        style={{
+          color: '#fff',
+          fontSize: 44,
+          fontWeight: 'bold',
+          marginHorizontal: 24,
+          marginTop: 32,
+          marginBottom: 16,
+          fontFamily: 'Damascus',
+          opacity: 0.87,
+        }}>
+        Quickbits
+      </Text>*/}
+      {/*<FlatList
         contentInsetAdjustmentBehavior="automatic"
-        ListHeaderComponent={
-          <Text
-            style={{
-              color: '#fff',
-              fontSize: 44,
-              fontWeight: 'bold',
-              marginHorizontal: 24,
-              marginTop: 32,
-              marginBottom: 16,
-              fontFamily: 'Damascus',
-              opacity: 0.87,
-            }}>
-            Quickbits
-          </Text>
-        }
         style={styles.container}
         onRefresh={() => getLatest()}
         refreshing={uLoading}
-        onScroll={({nativeEvent}) => {
-          if (isCloseToBottom(nativeEvent)) {
-            fetchEarlierArticles();
-          }
-        }}
+        onEndReached={() => fetchEarlierArticles()}
         data={articles}
         renderItem={({item}) => (
           <Article
@@ -164,69 +198,34 @@ const App = () => {
           />
         )}
         ListFooterComponent={bLoading ? <ActivityIndicator /> : null}
+        horizontal
         //onScrollEndDrag={() => fetchEarlierArticles()}
-      />
-      <Modal
-        animationType="fade"
-        presentationStyle="pageSheet"
-        visible={m}
-        backgroundColor="#121212"
-        //onRequestClose={setM(false)}
-      >
-        <View style={{...StyleSheet.absoluteFill, backgroundColor: '#1f1f1f'}}>
-          <ScrollView>
-            <View
-              style={{
-                ...styles.container,
-                paddingTop: 24,
-                backgroundColor: '#1f1f1f',
-                paddingHorizontal: 24,
-              }}>
-              <Button title="Close" onPress={() => setM(false)} />
-
-              <Text
-                style={{
-                  color: '#fff',
-                  fontSize: 24,
-                  fontWeight: '600',
-                  marginTop: 8,
-                  marginBottom: 8,
-                }}>
-                {article.title}
-              </Text>
-              {article.image != '' && (
-                <Image
-                  source={{uri: article.image}}
-                  style={{
-                    ...styles.articleImage,
-                    width: imgDims.w,
-                    height: imgDims.h,
-                  }}
-                />
-              )}
-              <Text
-                style={{
-                  color: '#A7A7A7',
-                  fontSize: 17,
-                  lineHeight: 28,
-                }}>
-                {article.summary}
-              </Text>
-              <Button
-                title={`View On ${article.outlet}`}
-                onPress={() => InAppBrowser.open(article.url)}
-                style={styles.articleButton}
-              />
-              <Button title="Close" onPress={() => setM(false)} />
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
+          />*/}
+      <CardStack
+        style={styles.container}
+        verticalSwipe={false}
+        ref={swiper}
+        onSwipedRight={() => swiper.current.goBackFromRight()}
+        onSwipedLeft={() => setCurrentIdx(prev => prev + 1)}
+        disableRightSwipe>
+        {articles.map((article, idx, self) => (
+          <Article
+            article={article}
+            key={article._id}
+            dimensions={dimensions}
+            onShowMore={() => {
+              setArticle(article);
+              setM(true);
+            }}
+            loader={idx == self.length - 2}
+          />
+        ))}
+      </CardStack>
     </View>
   );
 };
 
-const Article = ({article, dimensions, onShowMore}) => {
+const Article = ({article, dimensions, onShowMore, fetchNext, loader}) => {
   const [imgDims, setImgDims] = useState({w: 0, h: 0});
   const [more, setMore] = useState(false);
   useEffect(() => {
@@ -237,32 +236,38 @@ const Article = ({article, dimensions, onShowMore}) => {
         setImgDims({w: dimWidth, h: height * scale});
       });
     }
+    //if (loader) fetchNext();
   }, []);
 
   return (
-    <TouchableOpacity onPress={() => setMore(prev => !prev)} activeOpacity={1}>
-      <View style={styles.articleContainer}>
-        <Text style={styles.articleTitle}>{article.title}</Text>
-        {article.image != '' && (
-          <Image
-            source={{uri: article.image.split('resize')[0]}}
-            style={{
-              ...styles.articleImage,
-              width: imgDims.w,
-              height: imgDims.h,
-            }}
+    <Card>
+      <TouchableOpacity
+        onPress={() => setMore(prev => !prev)}
+        activeOpacity={1}>
+        <View
+          style={[styles.articleContainer, {width: dimensions.window.width}]}>
+          <Text style={styles.articleTitle}>{article.title}</Text>
+          {article.image != '' && (
+            <Image
+              source={{uri: article.image.split('resize')[0]}}
+              style={{
+                ...styles.articleImage,
+                width: imgDims.w,
+                height: imgDims.h,
+              }}
+            />
+          )}
+          <Text style={styles.articleDescription}>
+            {more ? article.summary : article.description}
+          </Text>
+          <Button
+            title={`View On ${article.outlet}`}
+            onPress={() => InAppBrowser.open(article.url)}
+            color="#84e2d8"
           />
-        )}
-        <Text style={styles.articleDescription}>
-          {more ? article.summary : article.description}
-        </Text>
-        <Button
-          title={`View On ${article.outlet}`}
-          onPress={() => InAppBrowser.open(article.url)}
-          color="#84e2d8"
-        />
-      </View>
-    </TouchableOpacity>
+        </View>
+      </TouchableOpacity>
+    </Card>
   );
 };
 
@@ -283,6 +288,7 @@ const styles = {
   container: {
     width: '100%',
     backgroundColor: '#000',
+    flex: 1,
     margin: 0,
   },
   colContainer: {
@@ -313,14 +319,12 @@ const styles = {
     marginRight: '1.5em',
   },
   articleImage: {
-    flex: 1,
     borderRadius: 16,
     marginBottom: 16,
   },
   articleTitle: {
     color: '#ffffff',
     fontSize: 24,
-    flex: 1,
     fontWeight: '600',
     marginBottom: 16,
     fontFamily: 'Damascus',
@@ -330,7 +334,6 @@ const styles = {
   articleDescription: {
     color: '#fff', //"#A7A7A7",
     fontSize: 17,
-    flex: 1,
     lineHeight: 24,
     fontFamily: 'Damascus',
     opacity: 0.87,
