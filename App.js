@@ -216,18 +216,28 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <Text
+      <View
         style={{
-          color: '#fff',
-          fontSize: 44,
-          fontWeight: 'bold',
-          marginHorizontal: 24,
+          flexDirection: 'row',
           marginTop: 32,
-          fontFamily: 'Damascus',
-          opacity: 0.87,
+          marginHorizontal: 24,
+          alignItems: 'center',
         }}>
-        QuickBits
-      </Text>
+        <Image
+          source={require('./quickbits.png')}
+          style={{height: 64, width: 64, opacity: 0.87}}
+        />
+        <Text
+          style={{
+            color: '#fff',
+            fontSize: 44,
+            fontWeight: '400',
+            fontFamily: 'Damascus',
+            opacity: 0.87,
+          }}>
+          QuickBits
+        </Text>
+      </View>
       {/*<FlatList
         contentInsetAdjustmentBehavior="automatic"
         style={styles.container}
@@ -378,7 +388,7 @@ const styles = {
   articleTitle: {
     color: '#ffffff',
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: '400',
     marginBottom: 16,
     fontFamily: 'Damascus',
     opacity: 0.87,
