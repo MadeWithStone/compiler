@@ -37,6 +37,7 @@ import {
 import Realm, {BSON, Credentials} from 'realm';
 import useMongoDB from './hooks/mongodb';
 import Swiper from 'react-native-swiper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const window = Dimensions.get('window');
 const screen = Dimensions.get('screen');
@@ -45,7 +46,36 @@ const upToDate = {
   _id: 'uptodate',
   title: 'You Are All Up To Date',
   description: 'Check back later for more news.',
+  summary: 'Check back later for more news.',
   image: '',
+};
+const bLoadingPage = {
+  _id: 'bLoading',
+  title: 'Hold On A Sec',
+  description: 'We are fetching the more stories for you right now.',
+  summary: 'We are fetching the more stories for you right now.',
+  image: '',
+};
+
+const storeLatest = async time => {
+  try {
+    await AsyncStorage.setItem('time', time);
+  } catch (e) {
+    // saving error
+  }
+};
+
+const getLatest = async () => {
+  try {
+    const value = await AsyncStorage.getItem('time');
+    if (value !== null) {
+      // value previously stored
+      return value;
+    }
+  } catch (e) {
+    // error reading value
+    return null;
+  }
 };
 
 const App = () => {
@@ -53,11 +83,12 @@ const App = () => {
   const db = useMongoDB();
   const [articles, setArticles] = useState([]);
   const [dimensions, setDimensions] = useState({window, screen});
-  const [bLoading, setBLoading] = useState(false);
+  const [bLoading, setBLoading] = useState(true);
   const [uLoading, setULoading] = useState(true);
   const [m, setM] = useState(false);
   const [article, setArticle] = useState(false);
   const [currentIdx, setCurrentIdx] = useState(0);
+  const [latestCreated, setLatestCreated] = useState(null);
   const swiper = useRef();
 
   const backgroundStyle = {
@@ -74,22 +105,12 @@ const App = () => {
     return () => subscription?.remove();
   });
 
-  const getLatest = () => {
-    setULoading(true);
-    db.collection('articles')
-      .find({description: {$ne: ''}}, {limit: 5, sort: {created: -1}})
-      .then(objs => {
-        setULoading(false);
-        setArticles(objs);
-      });
-  };
-
   useEffect(() => {
-    if (db) {
+    if (db && latestCreated) {
       console.log('initial fetch');
       fetchNextArticles();
     }
-  }, [db]);
+  }, [db, latestCreated]);
 
   async function fetchEarlierArticles() {
     if (db && !bLoading && !uLoading) {
@@ -102,6 +123,7 @@ const App = () => {
         {limit: 2, sort: {created: -1}},
       );
       setBLoading(false);
+
       setArticles(prev => {
         const newA = [...prev, ...objs];
 
@@ -112,14 +134,24 @@ const App = () => {
     }
   }
 
+  useEffect(() => {
+    getLatest().then(val => {
+      console.log('async val', val);
+      let d = new Date();
+      d = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0);
+      if (val) {
+        let vD = new Date(val);
+        setLatestCreated(vD > d ? val : d.toISOString());
+      } else {
+        setLatestCreated(d.toISOString());
+      }
+    });
+  }, []);
+
   async function fetchNextArticles() {
     console.log('fetching articles');
     if (db) {
       setBLoading(true);
-      let d = new Date();
-      d = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0);
-      d = new Date(d.getFullYear(), d.getMonth(), 22, 0, 0, 0);
-      console.log(d.toISOString());
 
       const objs = await db.collection('articles').find(
         {
@@ -128,12 +160,13 @@ const App = () => {
             $gt:
               articles.length > 0
                 ? articles[articles.length - 1].created
-                : d.toISOString(),
+                : latestCreated,
           },
         },
         {limit: 10, sort: {created: 1}},
       );
       setBLoading(false);
+      if (articles.length == 0 && objs.length > 0) storeLatest(objs[0].created);
       setArticles(prev => {
         const newA = [...prev, ...objs];
 
@@ -168,12 +201,15 @@ const App = () => {
 
   useEffect(() => {
     if (currentIdx == articles.length - 2) fetchNextArticles();
+    if (articles.length > 0 && currentIdx < articles.length) {
+      console.log('setting created', articles[currentIdx].created);
+      storeLatest(articles[currentIdx].created);
+    }
   }, [currentIdx]);
 
   const handleScroll = event => {
     const positionX = event.nativeEvent.contentOffset.x;
     const idx = Math.round(positionX / dimensions.window.width);
-    console.log(idx);
     setCurrentIdx(prev => (idx > prev ? idx : prev));
   };
 
@@ -224,10 +260,8 @@ const App = () => {
           console.log(index);
           //setCurrentIdx(prev => (index > prev ? index : prev));
         }}>
-        {articles.length == 0 && (uLoading || bLoading) ? (
-          <ActivityIndicator style={{marginTop: 16}} />
-        ) : (
-          [...articles, upToDate].map((article, idx, self) => (
+        {[...articles, bLoading ? bLoadingPage : upToDate].map(
+          (article, idx, self) => (
             <Article
               article={article}
               key={article._id}
@@ -238,7 +272,7 @@ const App = () => {
               }}
               loader={idx == self.length - 2}
             />
-          ))
+          ),
         )}
       </Swiper>
     </SafeAreaView>
