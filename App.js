@@ -23,6 +23,7 @@ import {
   ActivityIndicator,
   FlatList,
   Modal,
+  AppState,
 } from 'react-native';
 
 import {InAppBrowser} from 'react-native-inappbrowser-reborn';
@@ -91,6 +92,28 @@ const App = () => {
   const [latestCreated, setLatestCreated] = useState(null);
   const swiper = useRef();
 
+  const appState = useRef(AppState.currentState);
+  const [appStateVisible, setAppStateVisible] = useState(appState.current);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (
+        appState.current.match(/inactive|background/) &&
+        nextAppState === 'active'
+      ) {
+        console.log('App has come to the foreground!');
+      }
+
+      appState.current = nextAppState;
+      setAppStateVisible(appState.current);
+      console.log('AppState', appState.current);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   const backgroundStyle = {
     backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
   };
@@ -106,11 +129,11 @@ const App = () => {
   });
 
   useEffect(() => {
-    if (db && latestCreated) {
+    if (db && latestCreated && appStateVisible == 'active') {
       console.log('initial fetch');
       fetchNextArticles();
     }
-  }, [db, latestCreated]);
+  }, [db, latestCreated, appState]);
 
   async function fetchEarlierArticles() {
     if (db && !bLoading && !uLoading) {
@@ -138,7 +161,9 @@ const App = () => {
     getLatest().then(val => {
       console.log('async val', val);
       let d = new Date();
+      const offset = d.getTimezoneOffset();
       d = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0);
+      d = new Date(d.getTime() - offset * 60 * 1000);
       if (val) {
         let vD = new Date(val);
         setLatestCreated(vD > d ? val : d.toISOString());
@@ -200,7 +225,8 @@ const App = () => {
   }, [article]);
 
   useEffect(() => {
-    if (currentIdx == articles.length - 2) fetchNextArticles();
+    if (currentIdx == articles.length - 2 || currentIdx == articles.length - 1)
+      fetchNextArticles();
     if (articles.length > 0 && currentIdx < articles.length) {
       console.log('setting created', articles[currentIdx].created);
       storeLatest(articles[currentIdx].created);
