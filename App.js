@@ -35,26 +35,27 @@ import {
   LearnMoreLinks,
   ReloadInstructions,
 } from 'react-native/Libraries/NewAppScreen';
-import Realm, {BSON, Credentials} from 'realm';
-import useMongoDB from './hooks/mongodb';
 import Swiper from 'react-native-swiper';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {fetchNextArticles} from './db/firestore';
+import Icon from 'react-native-vector-icons/Feather';
 
 const window = Dimensions.get('window');
 const screen = Dimensions.get('screen');
 
 const upToDate = {
-  _id: 'uptodate',
-  title: 'You Are All Up To Date',
+  id: 'uptodate',
+  title: 'All Up To Date',
   description: 'Check back later for more news.',
   summary: 'Check back later for more news.',
   image: '',
+  url: '#refresh',
 };
 const bLoadingPage = {
-  _id: 'bLoading',
+  id: 'bLoading',
   title: 'Hold On A Sec',
-  description: 'We are fetching the more stories for you right now.',
-  summary: 'We are fetching the more stories for you right now.',
+  description: 'We are fetching more stories for you right now.',
+  summary: 'We are fetching more stories for you right now.',
   image: '',
 };
 
@@ -81,7 +82,6 @@ const getLatest = async () => {
 
 const App = () => {
   const isDarkMode = useColorScheme() === 'dark';
-  const db = useMongoDB();
   const [articles, setArticles] = useState([]);
   const [dimensions, setDimensions] = useState({window, screen});
   const [bLoading, setBLoading] = useState(true);
@@ -93,9 +93,12 @@ const App = () => {
   const swiper = useRef();
 
   const appState = useRef(AppState.currentState);
-  const [appStateVisible, setAppStateVisible] = useState(appState.current);
+  const [appStateVisible, setAppStateVisible] = useState('active');
+
+  const [settings, setSettings] = useState(false);
 
   useEffect(() => {
+    console.log('app screen loaded');
     const subscription = AppState.addEventListener('change', nextAppState => {
       if (
         appState.current.match(/inactive|background/) &&
@@ -129,33 +132,12 @@ const App = () => {
   });
 
   useEffect(() => {
-    if (db && latestCreated && appStateVisible == 'active') {
+    console.log('got initial date. fetching', latestCreated, appStateVisible);
+    if (latestCreated && appStateVisible == 'active') {
       console.log('initial fetch');
-      fetchNextArticles();
+      fetchArticles();
     }
-  }, [db, latestCreated, appState]);
-
-  async function fetchEarlierArticles() {
-    if (db && !bLoading && !uLoading) {
-      setULoading(true);
-      const objs = await db.collection('articles').find(
-        {
-          description: {$ne: ''},
-          created: {$lt: articles[articles.length - 1].created},
-        },
-        {limit: 2, sort: {created: -1}},
-      );
-      setBLoading(false);
-
-      setArticles(prev => {
-        const newA = [...prev, ...objs];
-
-        return newA.filter(
-          (a, id, self) => self.findIndex(b => b._id == a._id) == id,
-        );
-      });
-    }
-  }
+  }, [latestCreated, appState]);
 
   useEffect(() => {
     getLatest().then(val => {
@@ -173,33 +155,32 @@ const App = () => {
     });
   }, []);
 
-  async function fetchNextArticles() {
-    console.log('fetching articles');
-    if (db) {
-      setBLoading(true);
-
-      const objs = await db.collection('articles').find(
-        {
-          description: {$ne: ''},
-          created: {
-            $gt:
-              articles.length > 0
-                ? articles[articles.length - 1].created
-                : latestCreated,
-          },
-        },
-        {limit: 10, sort: {created: 1}},
-      );
-      setBLoading(false);
-      if (articles.length == 0 && objs.length > 0) storeLatest(objs[0].created);
-      setArticles(prev => {
-        const newA = [...prev, ...objs];
-
-        return newA.filter(
-          (a, id, self) => self.findIndex(b => b._id == a._id) == id,
-        );
+  async function fetchArticles() {
+    setBLoading(true);
+    console.log('latest created', latestCreated);
+    fetchNextArticles(
+      articles.length > 0
+        ? articles[articles.length - 1].created
+        : latestCreated,
+    )
+      .then(newArticles => {
+        console.log('got new articles');
+        setBLoading(false);
+        if (articles.length == 0 && newArticles.length > 0) {
+          storeLatest(newArticles[0].created);
+        }
+        console.log(newArticles.length);
+        setArticles(prev => {
+          const newA = [...prev, ...newArticles];
+          return newA.filter(
+            (a, id, self) => self.findIndex(b => b.id == a.id) == id,
+          );
+        });
+      })
+      .catch(err => {
+        console.warn(err);
+        setBLoading(false);
       });
-    }
   }
 
   const isCloseToBottom = ({layoutMeasurement, contentOffset, contentSize}) => {
@@ -226,7 +207,8 @@ const App = () => {
 
   useEffect(() => {
     if (currentIdx == articles.length - 2 || currentIdx == articles.length - 1)
-      fetchNextArticles();
+      fetchArticles();
+
     if (articles.length > 0 && currentIdx < articles.length) {
       console.log('setting created', articles[currentIdx].created);
       storeLatest(articles[currentIdx].created);
@@ -242,10 +224,21 @@ const App = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      {/*<View
+        style={{
+          marginTop: 8,
+          flexDirection: 'row',
+          justifyContent: 'flex-end',
+          marginHorizontal: 24,
+        }}>
+        <TouchableOpacity>
+          <Icon name="settings" color="#fff" size={24} />
+        </TouchableOpacity>
+      </View>*/}
       <View
         style={{
           flexDirection: 'row',
-          marginTop: 32,
+          marginTop: 16,
           marginHorizontal: 24,
           alignItems: 'center',
         }}>
@@ -300,13 +293,14 @@ const App = () => {
           (article, idx, self) => (
             <Article
               article={article}
-              key={article._id}
+              key={article.id}
               dimensions={dimensions}
               onShowMore={() => {
                 setArticle(article);
                 setM(true);
               }}
               loader={idx == self.length - 2}
+              refresh={() => fetchArticles()}
             />
           ),
         )}
@@ -315,11 +309,19 @@ const App = () => {
   );
 };
 
-const Article = ({article, dimensions, onShowMore, fetchNext, loader}) => {
+const Article = ({
+  article,
+  dimensions,
+  onShowMore,
+  fetchNext,
+  loader,
+  refresh,
+}) => {
   const [imgDims, setImgDims] = useState({w: 0, h: 0});
   const [more, setMore] = useState(false);
   useEffect(() => {
-    if (article.image != '') {
+    if (article.image != undefined && article.image != '') {
+      article.image = article.image.split(' ')[0];
       Image.getSize(article.image, (width, height) => {
         let dimWidth = dimensions.window.width - 80;
         const scale = dimWidth / width;
@@ -340,12 +342,18 @@ const Article = ({article, dimensions, onShowMore, fetchNext, loader}) => {
           <TouchableOpacity
             onPress={() => setMore(prev => !prev)}
             activeOpacity={1}
-            style={{flex: 1, flexGrow: 1}}>
+            style={{flex: 1, flexGrow: 1}}
+            key={article.id}>
             <View style={[styles.articleContainer]}>
               <Text style={styles.articleTitle}>{article.title}</Text>
-              {article.image != '' && (
+              {article.image != undefined && article.image.length > 0 && (
                 <Image
-                  source={{uri: article.image.split('resize')[0]}}
+                  source={{
+                    uri:
+                      article.image.length > 0
+                        ? article.image.split('resize')[0]
+                        : '',
+                  }}
                   style={{
                     ...styles.articleImage,
                     width: imgDims.w,
@@ -358,8 +366,16 @@ const Article = ({article, dimensions, onShowMore, fetchNext, loader}) => {
               </Text>
               {article.url && (
                 <Button
-                  title={`View On ${article.outlet}`}
-                  onPress={() => InAppBrowser.open(article.url)}
+                  title={
+                    article.url == '#refresh'
+                      ? 'Refresh'
+                      : `View On ${article.outlet}`
+                  }
+                  onPress={
+                    article.url == '#refresh'
+                      ? () => refresh()
+                      : () => InAppBrowser.open(article.url)
+                  }
                   color="#84e2d8"
                 />
               )}
