@@ -1,0 +1,83 @@
+{
+  "project_info": {
+    "project_number": "1063937780467",
+    "firebase_url": "https://game-timer-1b226.firebaseio.com",
+    "project_id": "game-timer-1b226",
+    "storage_bucket": "game-timer-1b226.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1063937780467:android:44f002f844688e49966586",
+        "android_client_info": {
+          "package_name": "com.compiler"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1063937780467-g1dmhc0g5pp03isg3a517cd3v9g4rj53.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzQK9-lMDY-KdHpc-Up142e5T85E1NVfQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1063937780467-g1dmhc0g5pp03isg3a517cd3v9g4rj53.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1063937780467-4eee4bmhmed3ghab0e5isqqn7km38le7.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.compiler.app"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1063937780467:android:d2e700b5500fb6c1966586",
+        "android_client_info": {
+          "package_name": "com.compiler.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1063937780467-g1dmhc0g5pp03isg3a517cd3v9g4rj53.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBzQK9-lMDY-KdHpc-Up142e5T85E1NVfQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1063937780467-g1dmhc0g5pp03isg3a517cd3v9g4rj53.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1063937780467-4eee4bmhmed3ghab0e5isqqn7km38le7.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.compiler.app"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
