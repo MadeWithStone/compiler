@@ -40,6 +40,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {fetchNextArticles} from './db/firestore';
 import Icon from 'react-native-vector-icons/Feather';
 
+import Settings from './Settings';
+
+const sources = ['The Guardian', 'VICE', 'CNN', 'CNBC'];
+
 const window = Dimensions.get('window');
 const screen = Dimensions.get('screen');
 
@@ -95,7 +99,8 @@ const App = () => {
   const appState = useRef(AppState.currentState);
   const [appStateVisible, setAppStateVisible] = useState('active');
 
-  const [settings, setSettings] = useState(false);
+  const [settings, setSettings] = useState([]);
+  const [settingsVis, setSettingsVis] = useState(false);
 
   useEffect(() => {
     console.log('app screen loaded');
@@ -121,6 +126,14 @@ const App = () => {
     backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
   };
 
+  const getSourceList = () => {
+    const newSources = sources.filter(
+      s => settings.findIndex(setting => setting.src == s) == -1,
+    );
+    const ss = settings.filter(s => s.show).map(s => s.src);
+    return [...ss, ...newSources];
+  };
+
   useEffect(() => {
     const subscription = Dimensions.addEventListener(
       'change',
@@ -140,6 +153,7 @@ const App = () => {
   }, [latestCreated, appState]);
 
   useEffect(() => {
+    loadSettings();
     getLatest().then(val => {
       console.log('async val', val);
       let d = new Date();
@@ -162,6 +176,7 @@ const App = () => {
       articles.length > 0
         ? articles[articles.length - 1].created
         : latestCreated,
+      getSourceList(),
     )
       .then(newArticles => {
         console.log('got new articles');
@@ -221,24 +236,52 @@ const App = () => {
     setCurrentIdx(prev => (idx > prev ? idx : prev));
   };
 
+  const saveSettings = async () => {
+    try {
+      console.log('saving: ', settings);
+      await AsyncStorage.setItem('settings', JSON.stringify(settings));
+    } catch (e) {
+      // saving error
+    }
+  };
+
+  const loadSettings = async () => {
+    try {
+      const value = await AsyncStorage.getItem('settings');
+      if (value !== null) {
+        // value previously stored
+        console.log(value);
+        setSettings(JSON.parse(value));
+      }
+    } catch (e) {
+      // error reading value
+    }
+  };
+
+  useEffect(() => {
+    if (settingsVis === false) {
+      saveSettings();
+    }
+  }, [settingsVis]);
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      {/*<View
+      <View
         style={{
-          marginTop: 8,
+          marginTop: 0,
           flexDirection: 'row',
           justifyContent: 'flex-end',
           marginHorizontal: 24,
         }}>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => setSettingsVis(prev => !prev)}>
           <Icon name="settings" color="#fff" size={24} />
         </TouchableOpacity>
-      </View>*/}
+      </View>
       <View
         style={{
           flexDirection: 'row',
-          marginTop: 16,
+          marginTop: 0,
           marginHorizontal: 24,
           alignItems: 'center',
         }}>
@@ -257,6 +300,12 @@ const App = () => {
           QuickBits
         </Text>
       </View>
+      <Settings
+        shown={settingsVis}
+        hide={() => setSettingsVis(false)}
+        settings={settings}
+        updateSettings={updates => setSettings(updates)}
+      />
       {/*<FlatList
         contentInsetAdjustmentBehavior="automatic"
         style={styles.container}

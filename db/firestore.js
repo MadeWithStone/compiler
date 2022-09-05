@@ -1,12 +1,13 @@
 import firestore from '@react-native-firebase/firestore';
 const articlesCollection = firestore().collection('articles');
 
-async function fetchNextArticles(date) {
+async function fetchNextArticles(date, outlets) {
   console.log('fetching articles from ', date);
 
   const snaps = await articlesCollection
     .orderBy('created', 'asc')
     .startAfter(date)
+    .where('outlet', 'in', outlets)
     .limit(15)
     .get();
   console.log(snaps.size);
